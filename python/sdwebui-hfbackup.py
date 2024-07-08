@@ -2,10 +2,18 @@ import os
 import glob
 from huggingface_hub import HfApi
 
-def upload_ckpts(username, repository, write_key, files):
+def upload_ckpts(username, repository, write_key, dir_picker, files, file_type_picker, pr_message):
     repo_id = f"{username}/{repository}"
     api = HfApi(token=write_key)
-    for file in files:
+
+    # Get the list of files in the selected directory
+    file_list = []
+    for file in os.listdir(dir_picker):
+        if file.endswith(file_type_picker):
+            file_list.append(os.path.join(dir_picker, file))
+
+    # Upload the files to Hugging Face Hub
+    for file in file_list:
         print(f"Uploading to HF: huggingface.co/{repo_id}/{file}")
         response = api.upload_file(
             path_or_fileobj=file,
@@ -13,7 +21,7 @@ def upload_ckpts(username, repository, write_key, files):
             repo_id=repo_id,
             repo_type=None,
             create_pr=1,
-            commit_message="Upload with 🤗 Earth & Dusk's Amazing HF Backup for Vast & Runpod"
+            commit_message=pr_message
         )
         print(response)
     print("DONE")
@@ -28,7 +36,10 @@ iface = gr.Interface(
         gr.Textbox(label="Hugging Face Username"),
         gr.Textbox(label="Hugging Face Repository"),
         gr.Textbox(label="Hugging Face Write Key"),
-        gr.Filebox(label="Checkpoint Files", multiple=True)
+        gr.Filebox(label="Select Directory", multiple=False, type="directory"),
+        gr.Filebox(label="Checkpoint Files", multiple=True),
+        gr.Radio(label="File Type", choices=["zip", "pt", "ckpt", "safetensors", "bin"], type="index"),
+        gr.Textbox(label="Pull Request Message")
     ],
     outputs="text",
     title="Hugging Face Hub Uploader",
