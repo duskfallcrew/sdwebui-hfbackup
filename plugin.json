@@ -2,7 +2,7 @@
   "name": "Hugging Face Hub Uploader",
   "version": "1.0.0",
   "description": "Upload checkpoint files to Hugging Face Hub",
-  "main": "python/upload_ckpts.py",
+  "main": "sdwebui-hfbackup.py",
   "ui": {
     "components": [
       {
