@@ -1,0 +1,48 @@
+{
+  "name": "Hugging Face Hub Uploader",
+  "version": "1.0.0",
+  "description": "Upload checkpoint files to Hugging Face Hub",
+  "main": "python/upload_ckpts.py",
+  "ui": {
+    "components": [
+      {
+        "type": "textbox",
+        "label": "Hugging Face Username",
+        "id": "hf-username"
+      },
+      {
+        "type": "textbox",
+        "label": "Hugging Face Repository",
+        "id": "hf-repo"
+      },
+      {
+        "type": "textbox",
+        "label": "Hugging Face Write Key",
+        "id": "write-key"
+      },
+      {
+        "type": "filepicker",
+        "label": "Checkpoint Files",
+        "id": "ckpt-files",
+        "multiple": true
+      },
+      {
+        "type": "button",
+        "label": "Upload to Hugging Face Hub",
+        "id": "upload-btn"
+      }
+    ]
+  },
+  "api_callbacks": [
+    {
+      "function": "upload_ckpts",
+      "inputs": [
+        "hf-username",
+        "hf-repo",
+        "write-key",
+        "ckpt-files"
+      ],
+      "outputs": ["response"]
+    }
+  ]
+}
