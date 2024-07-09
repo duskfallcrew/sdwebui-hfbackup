@@ -7,10 +7,7 @@ def upload_ckpts(username, repository, write_key, dir_picker, files, file_type_p
     api = HfApi(token=write_key)
 
     # Get the list of files in the selected directory
-    file_list = []
-    for file in os.listdir(dir_picker):
-        if file.endswith(file_type_picker):
-            file_list.append(os.path.join(dir_picker, file))
+    file_list = glob.glob(os.path.join(dir_picker, f"*.{file_type_picker}"))
 
     # Upload the files to Hugging Face Hub
     for file in file_list:
