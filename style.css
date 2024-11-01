@@ -1,0 +1,7 @@
+# style.css
+.hf-uploader-container {
+    margin: 1rem;
+    padding: 1rem;
+    border-radius: 8px;
+    background: var(--background-fill-primary);
+}

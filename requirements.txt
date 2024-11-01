@@ -1,4 +1,2 @@
 huggingface_hub==4.30.2
-gradio==3.4.12
-transformers
 glob2
