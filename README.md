@@ -40,7 +40,7 @@ If you encounter any issues or have questions about this plugin, please open an 
 
 * Initial release: [Insert date]
 * Pre Alpha: June 8 2024 - "NOT OFFICIALLY A RELEASE"
-* [Insert future updates and changes]
+* November 1 - 2024: Rejigged the code via Claude, will test asap and add feature logs.
 
 ## About & Links
 
@@ -50,7 +50,7 @@ We are the Duskfall Portal Crew, a DID system with over 300 alters, navigating l
 
 #### Join Our Community
 
-Website: [End Media](https://end-media.org/)
+Website: [End Media](https://end-media.org/) WEBSITE UNDER CONSTRUCTION LOOKING FOR SPONSORS
 
 Discord: [Join our Discord](https://discord.gg/5t2kYxt7An)
 
