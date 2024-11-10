@@ -1,0 +1,17 @@
+{
+    "name": "Hugging Face Backup",
+    "version": "1.0.0",
+    "description": "Backup your models and files to Hugging Face Hub",
+    "author": "Duskfallcrew @ Civitai / Earth & Dusk Media",
+    "repository": "https://github.com/duskfallcrew/sd-webui-hfbackup",
+    "tags": ["huggingface", "backup", "models"],
+    "requirements": ["huggingface_hub==0.19.4"],
+    "install_command": "pip install huggingface_hub==0.19.4",
+    "dependencies": [],
+    "extension": {
+        "type": "tab",
+        "categories": [
+            "utilities"
+        ]
+    }
+}
