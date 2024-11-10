@@ -5,41 +5,73 @@ import os
 from modules import shared, script_callbacks
 from huggingface_hub import HfApi
 import glob
+from typing import List
 
-def upload_to_huggingface(username, repo, write_key, dir_path, file_type, pr_message):
+def get_directory_list():
+    """Get list of relevant directories in the SD webui folder"""
+    base_dirs = [
+        "models/Stable-diffusion",
+        "models/Lora",
+        "embeddings",
+        "extensions",
+        "textual_inversion"
+    ]
+    
+    # Get absolute paths and ensure they exist
+    dirs = [os.path.abspath(d) for d in base_dirs if os.path.exists(d)]
+    # Add parent directory of each
+    parent_dirs = list(set([os.path.dirname(d) for d in dirs]))
+    
+    return sorted(dirs + parent_dirs)
+
+def upload_to_huggingface(username: str, repo: str, write_key: str, 
+                         selected_files: List[str], pr_message: str, progress=gr.Progress()):
     try:
-        # Initialize HF API
-        api = HfApi(token=write_key or shared.opts.data.get("hf_write_key", ""))
-        if not api.token:
+        # Get API token from input or settings
+        api_token = write_key or shared.opts.data.get("hf_write_key", "")
+        if not api_token:
             return "Error: No Hugging Face Write API Key provided"
 
+        api = HfApi(token=api_token)
         repo_id = f"{username}/{repo}"
         results = []
         
-        # Get files from directory
-        if dir_path:
-            files = glob.glob(os.path.join(dir_path, f"*.{file_type}"))
-            if not files:
-                return f"No .{file_type} files found in {dir_path}"
+        # Validate repository exists or create it
+        try:
+            api.create_repo(repo_id, private=True, exist_ok=True)
+        except Exception as e:
+            return f"Error creating/accessing repository: {str(e)}"
+
+        total_files = len(selected_files)
+        for idx, file_path in enumerate(selected_files, 1):
+            try:
+                file_name = os.path.basename(file_path)
+                progress(idx / total_files, desc=f"Uploading {file_name}")
+                results.append(f"Uploading: {file_name}")
                 
-            for file_path in files:
-                try:
-                    file_name = os.path.basename(file_path)
-                    results.append(f"Uploading: {file_name}")
-                    
-                    response = api.upload_file(
-                        path_or_fileobj=file_path,
-                        path_in_repo=file_name,
-                        repo_id=repo_id,
-                        create_pr=True,
-                        commit_message=pr_message or f"Upload {file_name}"
-                    )
+                response = api.upload_file(
+                    path_or_fileobj=file_path,
+                    path_in_repo=file_name,
+                    repo_id=repo_id,
+                    create_pr=True,
+                    commit_message=f"{pr_message}: {file_name}"
+                )
+                
+                pr_url = response.get("pullRequest", {}).get("url", "")
+                if pr_url:
                     results.append(f"✓ Successfully uploaded {file_name}")
-                    
-                except Exception as e:
-                    results.append(f"✗ Error uploading {file_name}: {str(e)}")
+                    results.append(f"Pull request: {pr_url}")
+                else:
+                    results.append(f"✓ Uploaded {file_name} (no PR created)")
+                
+            except Exception as e:
+                results.append(f"✗ Error uploading {file_name}: {str(e)}")
+                
+            results.append("-" * 40)  # Separator between files
         
+        progress(1.0, desc="Upload complete!")
         return "\n".join(results)
+        
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -72,15 +104,21 @@ def on_ui_tabs():
                 )
             
             with gr.Row():
-                dir_picker = gr.Textbox(
-                    label="Directory Path",
-                    placeholder="Path to directory containing files"
+                dir_dropdown = gr.Dropdown(
+                    label="Quick Directory Select",
+                    choices=get_directory_list(),
+                    type="value",
+                    allow_custom_value=True
                 )
-                file_type = gr.Radio(
-                    label="File Type",
-                    choices=["safetensors", "ckpt", "pt", "bin", "zip", "jpg", "png"],
-                    value="safetensors",
-                    type="value"
+            
+            with gr.Row():
+                file_picker = gr.File(
+                    label="Select Files to Upload",
+                    file_count="multiple",
+                    file_types=[
+                        ".safetensors", ".ckpt", ".pt", ".bin",
+                        ".zip", ".jpg", ".png"
+                    ]
                 )
             
             pr_message = gr.Textbox(
@@ -90,16 +128,26 @@ def on_ui_tabs():
             )
             
             upload_button = gr.Button("🚀 Upload to Hugging Face")
-            result = gr.Textbox(label="Results", interactive=False)
+            result = gr.Textbox(
+                label="Results",
+                interactive=False,
+                max_lines=10,
+                autoscroll=True
+            )
+            
+            def prepare_upload(username, repo, write_key, files, pr_message):
+                if not files:
+                    return "Please select files to upload"
+                file_paths = [f.name for f in files]
+                return upload_to_huggingface(username, repo, write_key, file_paths, pr_message)
             
             upload_button.click(
-                fn=upload_to_huggingface,
+                fn=prepare_upload,
                 inputs=[
                     username,
                     repository,
                     write_key,
-                    dir_picker,
-                    file_type,
+                    file_picker,
                     pr_message
                 ],
                 outputs=result
