@@ -51,6 +51,7 @@ Currently struggling with something, it is currently not liking me but it's at l
 * Initial release: [Insert date]
 * Pre Alpha: June 8 2024 - "NOT OFFICIALLY A RELEASE"
 * November 1 - 2024: Rejigged the code via Claude, will test asap and add feature logs.
+* November 10 - Tested it on A111, it's SEMI working -- I just uhhh need to poke at it more? - Right now i'ts doing the WHOLE folder rather than allowing to select, so i'll be fixing that next.
 
 ## About & Links
 
