@@ -2,6 +2,10 @@
 
 Welcome to our peculiar plugin repository! This project is a unique extension of our Jupyter notebook editions, curated by a diverse DID system with a passion for experimentation. We affectionately call it "opinionated," reflecting our unconventional approach.
 
+<img width="1283" alt="Screenshot 2024-11-10 at 15 02 44" src="https://github.com/user-attachments/assets/79c32865-cf54-4a7b-aa9d-32e971210926">
+
+
+
 ## **About this Plugin**
 
 This plugin enables seamless uploading of checkpoint files from Automatic1111 to the Hugging Face Hub, a popular platform for machine learning model sharing and collaboration. Our primary goal is to facilitate quick and easy uploads, while prioritizing simplicity and accessibility.
