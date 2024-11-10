@@ -36,6 +36,12 @@ This plugin builds upon the work of the Automatic1111 community and the Hugging 
 
 If you encounter any issues or have questions about this plugin, please open an issue in the Automatic1111 plugin repository or reach out to the developer directly.
 
+## **Issues**
+
+Currently there is no "BACK END" settings file, so right now it auto just yeets the write API key to the tab.
+
+Currently struggling with something, it is currently not liking me but it's at least showing up for once.
+
 ## **Changelog**
 
 * Initial release: [Insert date]
