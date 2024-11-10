@@ -1,4 +1,8 @@
+import gradio as gr
+import os
 from modules import shared, script_callbacks
+from huggingface_hub import HfApi
+import glob
 
 def on_ui_settings():
     section = ('huggingface', "Hugging Face")
