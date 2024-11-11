@@ -1,8 +1,7 @@
 import os
 import modules.scripts as scripts
-from modules import script_callbacks
+from modules import script_callbacks, shared
 import gradio as gr
-from modules import shared
 from huggingface_hub import HfApi
 from typing import List, Tuple
 
@@ -18,16 +17,11 @@ class HFBackupScript(scripts.Script):
 
 def get_directory_list():
     """Get list of relevant directories in the SD webui folder"""
-    base_dirs = [
-        os.path.join(scripts.basedir(), "models/Stable-diffusion"),
-        os.path.join(scripts.basedir(), "models/Lora"),
-        os.path.join(scripts.basedir(), "embeddings"),
-        os.path.join(scripts.basedir(), "extensions"),
-        os.path.join(scripts.basedir(), "textual_inversion")
-    ]
-    
+    base_dirs = ["models/Stable-diffusion","models/Lora","embeddings","extensions","textual_inversion"]
+    base_dirs_joined = os.path.join(scripts.basedir(), (k for k in base_dirs)) #its just more efficient
+
     # Get absolute paths and ensure they exist
-    dirs = [os.path.abspath(d) for d in base_dirs if os.path.exists(d)]
+    dirs = [os.path.abspath(d) for d in base_dirs_joined if os.path.exists(d)]
     return sorted(dirs)
 
 def get_files_in_directory(directory: str) -> List[dict]:
@@ -38,61 +32,61 @@ def get_files_in_directory(directory: str) -> List[dict]:
     extensions = ('.safetensors', '.ckpt', '.pt', '.bin', '.zip', '.jpg', '.png')
     files = []
     
-    for root, _, filenames in os.walk(directory):
+    for root, _, filenames in os.walk(directory): # find everything in the directory, ignore dirnames and just get path and filename
         for filename in filenames:
-            if filename.lower().endswith(extensions):
-                full_path = os.path.join(root, filename)
-                rel_path = os.path.relpath(full_path, directory)
+            if filename.lower().endswith(extensions): # if its an image or model
+                full_path = os.path.join(root, filename) # get the path
+                rel_path = os.path.relpath(full_path, directory) #
                 # Create a dictionary with the file information
+                # if os.path.exists(full_path):
                 files.append({
                     "value": full_path,  # The actual value for processing
                     "label": rel_path,   # What the user sees
                 })
-    
+            else: #if its NOT an image or a model
+                return f"{filename} doesnt have a known extension... "
+
+
     return sorted(files, key=lambda x: x["label"].lower())
 
 def upload_to_huggingface(repo: str, selected_files: List[str], pr_message: str, progress=gr.Progress()) -> str:
+
+    username = getattr(shared.opts, "hf_username", None)
+    api_token = getattr(shared.opts, "hf_write_token", None)
+
+    if not username or not api_token:
+        return "Error: Please configure Hugging Face credentials in settings"
+
+    api = HfApi(token=api_token)
+    repo_id = f"{username}/{repo}"
+    results = []
+
     try:
-        username = getattr(shared.opts, "hf_username", None)
-        api_token = getattr(shared.opts, "hf_write_token", None)
-        
-        if not username or not api_token:
-            return "Error: Please configure Hugging Face credentials in settings"
-
-        api = HfApi(token=api_token)
-        repo_id = f"{username}/{repo}"
-        results = []
-        
-        try:
-            api.create_repo(repo_id, private=True, exist_ok=True)
-        except Exception as e:
-            return f"Error creating/accessing repository: {str(e)}"
-
-        total_files = len(selected_files)
-        for idx, file_path in enumerate(selected_files, 1):
-            try:
-                file_name = os.path.basename(file_path)
-                progress(idx / total_files, desc=f"Uploading {file_name}")
-                results.append(f"Uploading: {file_name}")
-                
-                api.upload_file(
-                    path_or_fileobj=file_path,
-                    path_in_repo=file_name,
-                    repo_id=repo_id,
-                    commit_message=f"{pr_message}: {file_name}"
-                )
-                
-                results.append(f"✓ Successfully uploaded {file_name}")
-                
-            except Exception as e:
-                results.append(f"✗ Error uploading {file_name}: {str(e)}")
-                
-            results.append("-" * 40)
-        
-        return "\n".join(results)
-        
+        api.create_repo(repo_id, private=True, exist_ok=True)
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error creating/accessing repository {repo_id} {api_token} : {str(e)}"
+
+    total_files = len(selected_files)
+    for idx, file_path in enumerate(selected_files, 1):
+        file_name = os.path.basename(file_path)
+        progress(idx / total_files, desc=f"Uploading {file_name}")
+        results.append(f"Uploading: {file_name}")
+        try:
+            api.upload_file(
+                path_or_fileobj=file_path,
+                path_in_repo=file_name,
+                repo_id=repo_id,
+                commit_message=f"{pr_message}: {file_name}"
+            )
+
+        except Exception as e:
+            results.append(f"✗ Error uploading {file_name}: {str(e)}")
+            break
+        else:
+            results.append(f"✓ Successfully uploaded {file_name}")
+            results.append("-" * 40)
+
+    return "\n".join(results)
 
 def on_ui_tabs():
     with gr.Blocks(analytics_enabled=False) as hf_interface:
