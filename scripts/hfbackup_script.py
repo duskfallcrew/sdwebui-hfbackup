@@ -1,5 +1,3 @@
-# This is the full code we built on last step
-
 import os
 import time
 import datetime
@@ -9,6 +7,7 @@ import subprocess
 import logging
 from modules import script_callbacks, shared
 from git import Repo
+import shutil
 
 # Constants
 REPO_NAME = 'sd-webui-backups'
@@ -27,48 +26,73 @@ logging.basicConfig(level=logging.INFO,
                     ])
 logger = logging.getLogger(__name__)
 
+# --- Helper function for updating the status ---
+def update_status(script, status, file=None):
+    if file:
+        script.status = f"{status}: {file}"
+        print(f"{status}: {file}") # For console logging.
+    else:
+        script.status = status
+        print(status)  # For console logging
 
 # --- Git Related Functions ---
 def clone_or_create_repo(repo_url, repo_path, script):
-    script.status = "Checking/Cloning Repo..."
+    update_status(script, "Checking/Cloning Repo...")
     if os.path.exists(repo_path) and os.path.isdir(repo_path):
         logger.info(f"Repository already exists at {repo_path}, updating...")
         repo = Repo(repo_path)
         if repo.is_dirty():
             logger.warning("Local repo has uncommitted changes. Commit those before running to make sure nothing breaks.")
-            script.status = "Local repo has uncommitted changes"
-        
+            update_status(script, "Local repo has uncommitted changes")
     else:
         logger.info(f"Cloning repository from {repo_url} to {repo_path}")
-        script.status = "Cloning repository"
+        update_status(script, "Cloning repository")
         try:
-            Repo.clone_from(repo_url, repo_path)
+             use_git_credential_store = shared.opts.data.get("git_credential_store", True)
+             if use_git_credential_store:
+                repo = Repo.clone_from(repo_url, repo_path)
+             else:
+                 if "HF_TOKEN" not in os.environ:
+                    update_status(script, "HF_TOKEN environment variable not found")
+                    raise Exception("HF_TOKEN environment variable not found")
+                 env_token = os.environ["HF_TOKEN"]
+                 repo = Repo.clone_from(repo_url.replace("https://", f"https://{script.hf_user}:{env_token}@"), repo_path)
+
         except Exception as e:
             logger.error(f"Error creating or cloning repo: {e}")
-            script.status = f"Error creating or cloning repo: {e}"
+            update_status(script, f"Error creating or cloning repo: {e}")
             raise
-    script.status = "Repo ready"
+    update_status(script, "Repo ready")
     return repo
 
 def git_push_files(repo_path, commit_message, script):
-    script.status = "Pushing changes..."
+    update_status(script, "Pushing changes...")
     try:
         repo = Repo(repo_path)
         repo.git.add(all=True)
         repo.index.commit(commit_message)
         origin = repo.remote(name='origin')
-        origin.push()
+        use_git_credential_store = shared.opts.data.get("git_credential_store", True)
+        if use_git_credential_store:
+            origin.push()
+        else:
+            if "HF_TOKEN" not in os.environ:
+                update_status(script, "HF_TOKEN environment variable not found")
+                raise Exception("HF_TOKEN environment variable not found")
+            env_token = os.environ["HF_TOKEN"]
+            origin.push(f"https://{script.hf_user}:{env_token}@huggingface.co/{script.hf_user}/{REPO_NAME}")
+
         logger.info(f"Changes pushed successfully to remote repository.")
-        script.status = "Pushing Complete"
+        update_status(script, "Pushing Complete")
     except Exception as e:
          logger.error(f"Git push failed: {e}")
-         script.status = f"Git push failed: {e}"
+         update_status(script, f"Git push failed: {e}")
          raise
 
 # --- Backup Logic ---
 def backup_files(paths, hf_client, script):
     logger.info("Starting backup...")
-    script.status = "Starting Backup..."
+    update_status(script, "Starting Backup...")
     repo_id = script.hf_user + "/" + REPO_NAME
     repo_path = os.path.join(script.basedir, 'backup')
     sd_path = script.sd_path
@@ -87,31 +111,24 @@ def backup_files(paths, hf_client, script):
                 repo_file_path = os.path.relpath(local_file_path, start=sd_path)
                 try:
                     os.makedirs(os.path.dirname(os.path.join(repo_path, repo_file_path)), exist_ok=True)
-                    subprocess.run(["cp", local_file_path, os.path.join(repo_path, repo_file_path)], check=True, capture_output=True)
+                    shutil.copy2(local_file_path, os.path.join(repo_path, repo_file_path))
                     logger.info(f"Copied: {repo_file_path}")
-                    script.status = f"Copied: {repo_file_path}"
+                    update_status(script, "Copied", repo_file_path)
                 except Exception as e:
                     logger.error(f"Error copying {repo_file_path}: {e}")
-                    script.status = f"Error copying: {repo_file_path}: {e}"
+                    update_status(script, f"Error copying: {repo_file_path}: {e}")
                     return
 
     try:
         git_push_files(repo_path, f"Backup at {datetime.datetime.now()}", script)
         logger.info("Backup complete")
-        script.status = "Backup Complete"
+        update_status(script, "Backup Complete")
     except Exception as e:
          logger.error("Error pushing to the repo: ", e)
          return
 
 def start_backup_thread(script):
-    threading.Thread(target=backup_loop, args=(script,), daemon=True).start()
-
-def backup_loop(script):
-    try:
-      backup_files(script.backup_paths, None, script)
-    except Exception as e:
-      print(f"Backup error: {e}")
-    time.sleep(BACKUP_INTERVAL)
+    threading.Thread(target=backup_files, args=(script.backup_paths, None, script), daemon=True).start()
 
 # Gradio UI Setup
 def on_ui(script):
@@ -164,6 +181,7 @@ def on_script_load(script):
     script.sd_path = script.load().get(SD_PATH_KEY, '')
     script.hf_user = script.load().get(HF_USER_KEY, '')
     script.status = "Not running"
+
 
 script_callbacks.on_ui_tabs(on_ui)
 script_callbacks.on_script_load(on_script_load)
