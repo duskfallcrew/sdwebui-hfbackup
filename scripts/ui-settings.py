@@ -1,8 +1,5 @@
 import gradio as gr
-import os
 from modules import shared, script_callbacks
-from huggingface_hub import HfApi
-import glob
 
 def on_ui_settings():
     section = ('huggingface', "Hugging Face")
@@ -11,7 +8,7 @@ def on_ui_settings():
         shared.OptionInfo(
             "",
             "Hugging Face Write API Key",
-            gr.Password,  # Changed to Password type for security
+            gr.Password,
             {"interactive": True},
             section=section
         )
@@ -21,7 +18,17 @@ def on_ui_settings():
         shared.OptionInfo(
             "",
             "Hugging Face Read API Key",
-            gr.Password,  # Changed to Password type for security
+            gr.Password,
+            {"interactive": True},
+            section=section
+        )
+    )
+    shared.opts.add_option(
+        "git_credential_store",
+        shared.OptionInfo(
+            True,
+            "Use Git Credential Store",
+            gr.Checkbox,
             {"interactive": True},
             section=section
         )
