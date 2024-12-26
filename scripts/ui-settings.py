@@ -8,8 +8,8 @@ def on_ui_settings():
         shared.OptionInfo(
             "",
             "Hugging Face Write API Key",
-            gr.Password,
-            {"interactive": True},
+            gr.Textbox,
+            {"interactive": True, "type": "password", "lines": 1},
             section=section
         )
     )
@@ -18,8 +18,8 @@ def on_ui_settings():
         shared.OptionInfo(
             "",
             "Hugging Face Read API Key",
-            gr.Password,
-            {"interactive": True},
+            gr.Textbox,
+            {"interactive": True, "type": "password", "lines": 1},
             section=section
         )
     )
