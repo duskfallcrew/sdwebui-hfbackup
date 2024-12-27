@@ -171,9 +171,9 @@ def backup_files(backup_paths, script):
         logger.error("Error pushing to the repo: ", e)
         return
 
-def start_backup_thread(script, is_scheduled: bool):
+def start_backup_thread(script, is_scheduled: bool, backup_interval: int):
     backup_files(script.backup_paths, script)
-    script.update_schedule(is_scheduled)
+    script.update_schedule(is_scheduled, backup_interval)
     #threading.Thread(target=backup_files, args=(script.backup_paths, script), daemon=True).start()
 
 # Gradio UI Setup
@@ -188,12 +188,14 @@ def on_ui(script):
                     hf_token_box.change(on_token_change, inputs=[hf_token_box], outputs=None)
                 with gr.Column(scale=1):
                     status_box = gr.Textbox(label="Status", value=script.status)
-                    def on_start_button(is_scheduled: bool, progress=gr.Progress(track_tqdm=True)):
-                        start_backup_thread(script, is_scheduled)
+                    with gr.Row():
+                        is_scheduled = gr.Checkbox(label="Scheduled backups", value=True)
+                        backup_interval = gr.Number(label="Backup interval", step=1, minimum=60, maximum=36000, value=BACKUP_INTERVAL)
+                    def on_start_button(is_scheduled: bool, backup_interval: int, progress=gr.Progress(track_tqdm=True)):
+                        start_backup_thread(script, is_scheduled, backup_interval)
                         return "Starting Backup"
                     start_button = gr.Button(value="Start Backup")
-                    start_button.click(on_start_button, inputs=[is_scheduled], outputs=[status_box])
-                    is_scheduled = gr.Checkbox(label="Scheduled backups", value=True)
+                    start_button.click(on_start_button, inputs=[is_scheduled, backup_interval], outputs=[status_box])
             with gr.Row():
                 with gr.Column():
                     sd_path_box = gr.Textbox(label="SD Webui Path", value=script.sd_path)
@@ -240,13 +242,13 @@ class HFBackupScript():
     def on_ui(self, is_img2img=None):
         return on_ui(self)
     
-    def update_schedule(self, is_scheduled: bool):
+    def update_schedule(self, is_scheduled: bool, backup_interval: int):
         if "backup" in self.scheduler.get_jobs():
             self.scheduler.shutdown(wait=False)
             if is_scheduled:
-                self.scheduler.reschedule_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=BACKUP_INTERVAL)
+                self.scheduler.reschedule_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=backup_interval)
         elif is_scheduled:
-            self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=BACKUP_INTERVAL)
+            self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=backup_interval)
             self.scheduler.start()
 
 if __package__ == "hfbackup_script":
