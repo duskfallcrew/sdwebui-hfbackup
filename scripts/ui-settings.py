@@ -13,25 +13,5 @@ def on_ui_settings():
             section=section
         )
     )
-    shared.opts.add_option(
-        "hf_read_key",
-        shared.OptionInfo(
-            "",
-            "Hugging Face Read API Key",
-            gr.Textbox,
-            {"interactive": True, "type": "password", "lines": 1},
-            section=section
-        )
-    )
-    shared.opts.add_option(
-        "git_credential_store",
-        shared.OptionInfo(
-            True,
-            "Use Git Credential Store",
-            gr.Checkbox,
-            {"interactive": True},
-            section=section
-        )
-    )
 
 script_callbacks.on_ui_settings(on_ui_settings)
