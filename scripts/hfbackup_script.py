@@ -232,6 +232,7 @@ class HFBackupScript():
         self.status = "Not running"
         self.basedir = basedir()
         self.scheduler = BackgroundScheduler()
+        self.scheduler_job = None
 
     def title(self):
         return "Huggingface Backup"
@@ -244,10 +245,10 @@ class HFBackupScript():
     
     def update_schedule(self, is_scheduled: bool, backup_interval: int):
         if is_scheduled:
-            if "backup" not in self.scheduler.get_jobs():
-                self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=backup_interval)
+            if self.scheduler_job is None:
+                self.scheduler_job = self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", replace_existing=True, seconds=backup_interval)
             self.scheduler.start()
-        else: self.scheduler.shutdown(wait=False)
+        else: self.scheduler.shutdown()
 
 if __package__ == "hfbackup_script":
     script = HFBackupScript()
