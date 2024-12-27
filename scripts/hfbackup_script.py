@@ -183,35 +183,36 @@ def on_ui(script):
             with gr.Row():
                 with gr.Column(scale=3):
                     hf_token_box = gr.Textbox(label="Huggingface Token", type='password', value=script.hf_token)
-                    def on_token_change(token):
+                    def on_token_change(token: str):
                         script.hf_token = token
                     hf_token_box.change(on_token_change, inputs=[hf_token_box], outputs=None)
                 with gr.Column(scale=1):
                     status_box = gr.Textbox(label="Status", value=script.status)
-                    def on_start_button(progress=gr.Progress(track_tqdm=True)):
-                        start_backup_thread(script)
+                    def on_start_button(is_scheduled: bool, progress=gr.Progress(track_tqdm=True)):
+                        start_backup_thread(script, is_scheduled)
                         return "Starting Backup"
                     start_button = gr.Button(value="Start Backup")
-                    start_button.click(on_start_button, inputs=None, outputs=[status_box])
+                    start_button.click(on_start_button, inputs=[is_scheduled], outputs=[status_box])
+                    is_scheduled = gr.Checkbox(label="Scheduled backups", value=True)
             with gr.Row():
                 with gr.Column():
                     sd_path_box = gr.Textbox(label="SD Webui Path", value=script.sd_path)
-                    def on_sd_path_change(path):
+                    def on_sd_path_change(path: str):
                         script.sd_path = path
                     sd_path_box.change(on_sd_path_change, inputs=[sd_path_box], outputs=None)
                 with gr.Column():
                     hf_user_box = gr.Textbox(label="Huggingface Username", value=script.hf_user)
-                    def on_hf_user_change(user):
+                    def on_hf_user_change(user: str):
                         script.hf_user = user
                     hf_user_box.change(on_hf_user_change, inputs=[hf_user_box], outputs=None)
                 with gr.Column():
                     hf_repo_box = gr.Textbox(label="Huggingface Reponame", value=script.hf_repo)
-                    def on_hf_repo_change(repo):
+                    def on_hf_repo_change(repo: str):
                         script.hf_repo = repo
                     hf_repo_box.change(on_hf_repo_change, inputs=[hf_repo_box], outputs=None)
             with gr.Row():
                 backup_paths_box = gr.Textbox(label="Backup Paths (one path per line)", lines=4, value='\n'.join(script.backup_paths) if isinstance(script.backup_paths, list) else "")
-                def on_backup_paths_change(paths):
+                def on_backup_paths_change(paths: list):
                     paths_list = [p.strip() for p in paths.split('\n') if p.strip()]
                     script.backup_paths = paths_list
                 backup_paths_box.change(on_backup_paths_change, inputs=[backup_paths_box], outputs=None)
@@ -240,8 +241,9 @@ class HFBackupScript():
         return on_ui(self)
     
     def update_schedule(self):
-        self.scheduler.shutdown(wait=False)
-        if "backup" in self.scheduler.get_jobs(): self.scheduler.reschedule_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=BACKUP_INTERVAL)
+        if "backup" in self.scheduler.get_jobs():
+            self.scheduler.shutdown(wait=False)
+            self.scheduler.reschedule_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=BACKUP_INTERVAL)
         else: self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=BACKUP_INTERVAL)
         self.scheduler.start()
 
