@@ -240,10 +240,9 @@ class HFBackupScript():
         return on_ui(self)
     
     def update_schedule(self):
-        if "backup" in self.scheduler.get_jobs():
-            self.scheduler.shutdown(wait=False)
-            self.scheduler.remove_job("backup")
-        self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=BACKUP_INTERVAL)
+        self.scheduler.shutdown(wait=False)
+        if "backup" in self.scheduler.get_jobs(): self.scheduler.reschedule_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=BACKUP_INTERVAL)
+        else: self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=BACKUP_INTERVAL)
         self.scheduler.start()
 
 if __package__ == "hfbackup_script":
