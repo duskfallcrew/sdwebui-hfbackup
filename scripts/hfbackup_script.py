@@ -1,17 +1,15 @@
 import os
-import time
 import datetime
-import threading
+#import threading
 import gradio as gr
-import subprocess
 import logging
-from modules import scripts, script_callbacks, shared
+from modules import scripts, script_callbacks, shared, paths
 from modules.scripts import basedir
-from modules import paths
 from huggingface_hub import HfApi, HfFolder
 import shutil
 from pathlib import Path
 import hashlib
+import gc
 from apscheduler.schedulers.background import BackgroundScheduler
 
 # Constants
@@ -173,8 +171,9 @@ def backup_files(backup_paths, script):
 
 def start_backup_thread(script, is_scheduled: bool, backup_interval: int):
     backup_files(script.backup_paths, script)
-    script.update_schedule(is_scheduled, backup_interval)
     #threading.Thread(target=backup_files, args=(script.backup_paths, script), daemon=True).start()
+    script.update_schedule(is_scheduled, backup_interval)
+    gc.collect()
 
 # Gradio UI Setup
 def on_ui(script):
@@ -246,11 +245,12 @@ class HFBackupScript():
         if self.scheduler is not None:
             self.scheduler.shutdown()
             del self.scheduler
+            gc.collect()
         if is_scheduled:
             self.scheduler = BackgroundScheduler()
             self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", replace_existing=True, seconds=backup_interval)
             self.scheduler.start()
-
+    
 if __package__ == "hfbackup_script":
     script = HFBackupScript()
     script_callbacks.on_ui_tabs(script.on_ui)
