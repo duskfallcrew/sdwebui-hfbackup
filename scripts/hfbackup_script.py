@@ -171,9 +171,9 @@ def backup_files(backup_paths, script):
         logger.error("Error pushing to the repo: ", e)
         return
 
-def start_backup_thread(script):
+def start_backup_thread(script, is_scheduled: bool):
     backup_files(script.backup_paths, script)
-    script.update_schedule()
+    script.update_schedule(is_scheduled)
     #threading.Thread(target=backup_files, args=(script.backup_paths, script), daemon=True).start()
 
 # Gradio UI Setup
@@ -240,12 +240,14 @@ class HFBackupScript():
     def on_ui(self, is_img2img=None):
         return on_ui(self)
     
-    def update_schedule(self):
+    def update_schedule(self, is_scheduled: bool):
         if "backup" in self.scheduler.get_jobs():
             self.scheduler.shutdown(wait=False)
-            self.scheduler.reschedule_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=BACKUP_INTERVAL)
-        else: self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=BACKUP_INTERVAL)
-        self.scheduler.start()
+            if is_scheduled:
+                self.scheduler.reschedule_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=BACKUP_INTERVAL)
+        elif is_scheduled:
+            self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=BACKUP_INTERVAL)
+            self.scheduler.start()
 
 if __package__ == "hfbackup_script":
     script = HFBackupScript()
