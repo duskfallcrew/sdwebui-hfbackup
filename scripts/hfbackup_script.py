@@ -5,12 +5,14 @@ import threading
 import gradio as gr
 import subprocess
 import logging
-from modules import scripts, script_callbacks
+from modules import scripts, script_callbacks, shared
 from modules.scripts import basedir
+from modules import paths
 from huggingface_hub import HfApi, HfFolder
 import shutil
 from pathlib import Path
 import hashlib
+from apscheduler.schedulers.background import BackgroundScheduler
 
 # Constants
 REPO_NAME = 'sd-webui-backups'
@@ -39,8 +41,9 @@ def update_status(script, status, file=None):
         print(status)  # For console logging
 
 # --- HfApi Related Functions ---
-def get_hf_token():
-    if script.hf_token: hf_token = script.hf_token
+def get_hf_token(script):
+    if shared.opts.hf_write_key: hf_token = shared.opts.hf_write_key
+    elif script.hf_token: hf_token = script.hf_token
     elif HfFolder.get_token(): hf_token = HfFolder.get_token()
     else: hf_token = os.getenv("HF_TOKEN")
     if not hf_token:
@@ -48,12 +51,19 @@ def get_hf_token():
         raise Exception("HF_TOKEN environment variable not found")
     return hf_token
 
+def get_hf_user(script):
+    if script.hf_user: return script.hf_user
+    hf_token = get_hf_token(script)
+    api = HfApi(token=hf_token)
+    whoami = api.whoami(token=hf_token)
+    return whoami.get("name", "") if isinstance(whoami, dict) else ""
+
 def clone_or_create_repo(repo_id: str, repo_type: str, repo_path: str, script):
     update_status(script, "Checking/Cloning Repo...")
     logger.info(f"Cloning repository from {repo_id} to {repo_path}")
     update_status(script, "Cloning repository")
     try:
-        hf_token = get_hf_token()
+        hf_token = get_hf_token(script)
         api = HfApi(token=hf_token)
         if os.path.exists(repo_path) and os.path.isdir(repo_path):
             logger.info(f"Repository already exists at {repo_path}, updating...")
@@ -98,7 +108,7 @@ def get_ingore_paths(path: str, repo_id: str, repo_type: str, hf_token: str):
         if p.is_dir(): continue
         rp = p.resolve().relative_to(Path(path).resolve())
         if is_same_file(str(p), repo_id, repo_type, str(rp), hf_token): ignores.append(get_path_in_repo(str(rp)))
-    print(f"These files are already latest: {', '.join(ignores)}") # debug
+    if len(ignores) != 0: print(f"These files are already latest: {', '.join(ignores)}") # debug
     return ignores
 
 def safe_copy(src: str, dst: str, script):
@@ -114,7 +124,7 @@ def safe_copy(src: str, dst: str, script):
 def hf_push_files(repo_id: str, repo_type: str, repo_path: str, commit_message: str, script):
     update_status(script, "Pushing changes...")
     try:
-        hf_token = get_hf_token()
+        hf_token = get_hf_token(script)
         api = HfApi(token=hf_token)
         ignore_paths = get_ingore_paths(repo_path, repo_id, repo_type, hf_token)
         api.create_repo(repo_id=repo_id, repo_type=repo_type, exist_ok=True, token=hf_token)
@@ -128,19 +138,19 @@ def hf_push_files(repo_id: str, repo_type: str, repo_path: str, commit_message: 
         raise
 
 # --- Backup Logic ---
-def backup_files(paths, hf_client, script):
+def backup_files(backup_paths, script):
     repo_type = "model"
     logger.info("Starting backup...")
     update_status(script, "Starting Backup...")
-    repo_id = script.hf_user + "/" + REPO_NAME
+    repo_id = get_hf_user(script) + "/" + REPO_NAME
     repo_path = os.path.join(script.basedir, 'backup')
-    sd_path = script.sd_path
+    sd_path = script.sd_path if script.sd_path else paths.data_path
     try:
         clone_or_create_repo(repo_id, repo_type, repo_path, script)
     except Exception as e:
         logger.error("Error starting the backup, please see the traceback.")
         return
-    for base_path in paths:
+    for base_path in backup_paths:
         logger.info(f"Backing up: {base_path}")
         for root, _, files in os.walk(os.path.join(sd_path, base_path)):
             for file in files:
@@ -162,11 +172,13 @@ def backup_files(paths, hf_client, script):
         return
 
 def start_backup_thread(script):
-    threading.Thread(target=backup_files, args=(script.backup_paths, None, script), daemon=True).start()
+    backup_files(script.backup_paths, script)
+    script.update_schedule()
+    #threading.Thread(target=backup_files, args=(script.backup_paths, script), daemon=True).start()
 
 # Gradio UI Setup
 def on_ui(script):
-    with gr.Blocks() as hf_backup:
+    with gr.Blocks(analytics_enabled=False) as hf_backup:
         with gr.Column():
             with gr.Row():
                 with gr.Column(scale=3):
@@ -176,7 +188,7 @@ def on_ui(script):
                     hf_token_box.change(on_token_change, inputs=[hf_token_box], outputs=None)
                 with gr.Column(scale=1):
                     status_box = gr.Textbox(label="Status", value=script.status)
-                    def on_start_button():
+                    def on_start_button(progress=gr.Progress(track_tqdm=True)):
                         start_backup_thread(script)
                         return "Starting Backup"
                     start_button = gr.Button(value="Start Backup")
@@ -200,10 +212,7 @@ def on_ui(script):
                 backup_paths_box.change(on_backup_paths_change, inputs=[backup_paths_box], outputs=None)
     return [(hf_backup, "Huggingface Backup", "hfbackup_script")]
 
-def on_run(script, p, *args):
-    pass
-
-class Script():
+class HFBackupScript():
     env = {}
 
     def __init__(self):
@@ -213,6 +222,7 @@ class Script():
         self.hf_user = self.env.get(HF_USER_KEY, "")
         self.status = "Not running"
         self.basedir = basedir()
+        self.scheduler = BackgroundScheduler()
 
     def title(self):
         return "Huggingface Backup"
@@ -220,12 +230,14 @@ class Script():
     def show(self, is_img2img=None):
         return scripts.AlwaysVisible
 
-    def ui(self, is_img2img=None):
+    def on_ui(self, is_img2img=None):
         return on_ui(self)
-
-    def run(self, p, *args):
-        return on_run(self, p, *args)
+    
+    def update_schedule(self):
+        self.scheduler.remove_job('backup')
+        self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=60)
+        self.scheduler.start()
 
 if __package__ == "hfbackup_script":
-    script = Script()
-    script_callbacks.on_ui_tabs(script.ui)
+    script = HFBackupScript()
+    script_callbacks.on_ui_tabs(script.on_ui)
