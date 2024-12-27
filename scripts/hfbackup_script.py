@@ -231,8 +231,7 @@ class HFBackupScript():
         self.hf_repo = REPO_NAME
         self.status = "Not running"
         self.basedir = basedir()
-        self.scheduler = BackgroundScheduler()
-        self.scheduler_job = None
+        self.scheduler = None
 
     def title(self):
         return "Huggingface Backup"
@@ -244,11 +243,13 @@ class HFBackupScript():
         return on_ui(self)
     
     def update_schedule(self, is_scheduled: bool, backup_interval: int):
+        if self.scheduler is not None:
+            self.scheduler.shutdown()
+            del self.scheduler
         if is_scheduled:
-            if self.scheduler_job is None:
-                self.scheduler_job = self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", replace_existing=True, seconds=backup_interval)
+            self.scheduler = BackgroundScheduler()
+            self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", replace_existing=True, seconds=backup_interval)
             self.scheduler.start()
-        else: self.scheduler.shutdown()
 
 if __package__ == "hfbackup_script":
     script = HFBackupScript()
