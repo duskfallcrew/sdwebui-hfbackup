@@ -243,13 +243,12 @@ class HFBackupScript():
         return on_ui(self)
     
     def update_schedule(self, is_scheduled: bool, backup_interval: int):
-        if "backup" in self.scheduler.get_jobs():
-            self.scheduler.shutdown(wait=False)
-            if is_scheduled:
-                self.scheduler.reschedule_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=backup_interval)
-        elif is_scheduled:
-            self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=backup_interval)
+        if is_scheduled:
+            if "backup" not in self.scheduler.get_jobs():
+                self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=backup_interval)
+            else: self.scheduler.reschedule_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=backup_interval)
             self.scheduler.start()
+        else: self.scheduler.shutdown(wait=False)
 
 if __package__ == "hfbackup_script":
     script = HFBackupScript()
