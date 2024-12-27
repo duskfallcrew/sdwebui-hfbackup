@@ -246,7 +246,6 @@ class HFBackupScript():
         if is_scheduled:
             if "backup" not in self.scheduler.get_jobs():
                 self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=backup_interval)
-            else: self.scheduler.reschedule_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=backup_interval)
             self.scheduler.start()
         else: self.scheduler.shutdown(wait=False)
 
