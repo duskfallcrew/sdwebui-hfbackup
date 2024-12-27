@@ -142,7 +142,7 @@ def backup_files(backup_paths, script):
     repo_type = "model"
     logger.info("Starting backup...")
     update_status(script, "Starting Backup...")
-    repo_id = get_hf_user(script) + "/" + REPO_NAME
+    repo_id = get_hf_user(script) + "/" + script.hf_repo
     repo_path = os.path.join(script.basedir, 'backup')
     sd_path = script.sd_path if script.sd_path else paths.data_path
     try:
@@ -204,6 +204,11 @@ def on_ui(script):
                     def on_hf_user_change(user):
                         script.hf_user = user
                     hf_user_box.change(on_hf_user_change, inputs=[hf_user_box], outputs=None)
+                with gr.Column():
+                    hf_repo_box = gr.Textbox(label="Huggingface Reponame", value=script.hf_repo)
+                    def on_hf_repo_change(repo):
+                        script.hf_repo = repo
+                    hf_repo_box.change(on_hf_repo_change, inputs=[hf_repo_box], outputs=None)
             with gr.Row():
                 backup_paths_box = gr.Textbox(label="Backup Paths (one path per line)", lines=4, value='\n'.join(script.backup_paths) if isinstance(script.backup_paths, list) else "")
                 def on_backup_paths_change(paths):
@@ -220,6 +225,7 @@ class HFBackupScript():
         self.backup_paths = self.env.get(BACKUP_PATHS_KEY, DEFAULT_BACKUP_PATHS)
         self.sd_path = self.env.get(SD_PATH_KEY, "")
         self.hf_user = self.env.get(HF_USER_KEY, "")
+        self.hf_repo = REPO_NAME
         self.status = "Not running"
         self.basedir = basedir()
         self.scheduler = BackgroundScheduler()
@@ -235,7 +241,7 @@ class HFBackupScript():
     
     def update_schedule(self):
         if "backup" in self.scheduler.get_jobs(): self.scheduler.remove_job("backup")
-        self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=60)
+        self.scheduler.add_job(func=backup_files, args=[self.backup_paths, self], trigger="interval", id="backup", seconds=BACKUP_INTERVAL)
         self.scheduler.start()
 
 if __package__ == "hfbackup_script":
