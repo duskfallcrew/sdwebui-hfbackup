@@ -1,2 +1,2 @@
-huggingface_hub==4.30.2
-gitpython
+huggingface_hub
+apscheduler
