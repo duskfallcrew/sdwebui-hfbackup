@@ -1,2 +1,2 @@
-huggingface_hub==4.30.2
-glob2
+huggingface_hub
+apscheduler
